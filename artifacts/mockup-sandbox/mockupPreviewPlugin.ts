@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "fs";
+import { readdir } from "fs/promises";
 import path from "path";
-import glob from "fast-glob";
 import chokidar from "chokidar";
 import type { FSWatcher } from "chokidar";
 import type { Plugin } from "vite";
@@ -39,11 +39,33 @@ export function mockupPreviewPlugin(): Plugin {
       .every((segment) => !segment.startsWith("_"));
   }
 
+  async function collectMockupFiles(absoluteDir: string, relativeDir = ""): Promise<string[]> {
+    let entries;
+    try {
+      entries = await readdir(absoluteDir, { withFileTypes: true });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
+
+    const files: string[] = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name.startsWith("_")) continue;
+      const relativePath = path.posix.join(relativeDir, entry.name);
+      const absolutePath = path.join(absoluteDir, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...await collectMockupFiles(absolutePath, relativePath));
+      } else if (entry.isFile() && entry.name.endsWith(".tsx")) {
+        files.push(path.posix.join(MOCKUPS_DIR, relativePath));
+      }
+    }
+    return files;
+  }
+
   async function discoverComponents(): Promise<Array<DiscoveredComponent>> {
-    const files = await glob(`${MOCKUPS_DIR}/**/*.tsx`, {
-      cwd: root,
-      ignore: ["**/_*/**", "**/_*.tsx"],
-    });
+    const files = (await collectMockupFiles(getMockupsAbsDir())).sort();
 
     return files.map((f) => ({
       globKey: "./" + f.slice("src/".length),
