@@ -23,6 +23,7 @@ import {
   propertyStatusLabel,
   propertyTypeLabel,
   mixedUseOwnershipScopeValues,
+  supportsPropertyRental,
   type Property,
   type PropertyDraft,
 } from '@/lib/propertiesTypes';
@@ -187,9 +188,8 @@ function PropertyCard({
   onUnitDelete: (unit: Unit) => Promise<void>;
 }) {
   const propertyUnits = units.filter((unit) => unit.property_id === property.id);
-  const isSingleHome = property.property_type === 'single_family_home';
   const mixedUse = property.property_type === 'mixed_use_development';
-  const propertyLevelRental = isSingleHome || ['office_building', 'retail_center', 'restaurant_hospitality'].includes(property.property_type ?? '');
+  const propertyLevelRental = supportsPropertyRental(property.property_type);
   const rented = propertyLevelRental
     ? Number(Boolean(property.is_rented))
     : propertyUnits.filter((unit) => unit.status === 'occupied').length;
@@ -348,7 +348,7 @@ export default function PropertiesPage() {
         ownership_scope: owner.ownership_scope || null,
       });
     }
-    if (['single_family_home', 'office_building', 'retail_center', 'restaurant_hospitality'].includes(propertyType ?? '') && renterDraft) {
+    if (supportsPropertyRental(propertyType) && renterDraft) {
       const contact = await resolveContact(renterDraft, 'tenant', resolvedContacts);
       relationshipRows.push({
         contact_id: contact.id,

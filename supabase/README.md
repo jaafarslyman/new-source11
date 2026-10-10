@@ -29,6 +29,8 @@ The property RLS policies scope reads and writes to the signed-in Supabase user 
 
 After the existing property and unit tables are set up, run `commercial-properties-migration.sql` to add office, retail, hospitality, and mixed-use fields. This migration preserves existing records. Its updated check constraints are added `NOT VALID` so older rows do not block the migration; new and updated rows must satisfy them. Do not rerun `property-rebuild.sql` just to add commercial support because that script clears property and unit data.
 
+After the commercial migration, run `industrial-properties-migration.sql` to add industrial subtype details, support industrial property rentals, and enforce subtype-specific data for warehouses, distribution centers, manufacturing plants, and R&D facilities. It is additive and preserves existing records. Its new checks are `NOT VALID` so existing rows do not block the migration; new and updated rows must satisfy them. Do not rerun `property-rebuild.sql` to add industrial support.
+
 ## Optional automation webhooks
 
 These are only needed for their corresponding automation features:

@@ -17,6 +17,7 @@ import {
   propertyStatusLabel,
   propertyTypeLabel,
   RETAIL_CENTER_TYPES,
+  supportsPropertyRental,
   type Property,
   type PropertyDraft,
 } from '@/lib/propertiesTypes';
@@ -51,6 +52,29 @@ function PropertySubtypeRows({ property }: { property: Property }) {
       ?.map((value) => MIXED_USE_COMPONENTS.find((component) => component.value === value)?.label ?? value)
       .join(', ');
     return <InfoRow label="Included uses" value={uses} />;
+  }
+  if (['warehouse', 'distribution_center', 'manufacturing_plant', 'research_development_facility'].includes(property.property_type ?? '')) {
+    const locationRows = ['warehouse', 'distribution_center', 'research_development_facility'].includes(property.property_type ?? '');
+    const location = property.industrial_in_building === null
+      ? null
+      : property.industrial_in_building ? 'Inside a building' : 'Standalone';
+    return <>
+      {locationRows && <InfoRow label="Industrial location" value={location} />}
+      {locationRows && property.industrial_in_building && <InfoRow label="Industrial floor" value={property.industrial_floor === 0 ? 'Ground floor' : property.industrial_floor} />}
+      {property.property_type === 'warehouse' && <InfoRow label="Goods stored" value={property.warehouse_goods?.join(', ')} />}
+      {property.property_type === 'distribution_center' && <>
+        <InfoRow label="Goods handled" value={property.distribution_goods?.join(', ')} />
+        <InfoRow label="Distribution operations" value={property.distribution_services?.join(', ')} />
+      </>}
+      {property.property_type === 'manufacturing_plant' && <>
+        <InfoRow label="Products manufactured" value={property.manufactured_products?.join(', ')} />
+        <InfoRow label="Production inputs" value={property.production_inputs?.join(', ')} />
+      </>}
+      {property.property_type === 'research_development_facility' && <>
+        <InfoRow label="Research focus" value={property.research_focus?.join(', ')} />
+        <InfoRow label="Research inputs" value={property.research_inputs?.join(', ')} />
+      </>}
+    </>;
   }
   return null;
 }
@@ -222,7 +246,7 @@ export default function PropertyDetailPage() {
         ownership_scope: owner.ownership_scope || null,
       });
     }
-    if (['single_family_home', 'office_building', 'retail_center', 'restaurant_hospitality'].includes(draft.property_type ?? '') && renterDraft) {
+    if (supportsPropertyRental(draft.property_type) && renterDraft) {
       const contact = await resolveContact(renterDraft, 'tenant', resolvedContacts);
       rows.push({
         contact_id: contact.id,
@@ -306,11 +330,11 @@ export default function PropertyDetailPage() {
 
   const propertyUnits = units.filter((unit) => unit.property_id === property?.id);
   const propertyOwners = ownerships.filter((row) => row.property_id === property?.id && !row.unit_id && row.relationship_type === 'owner');
-  const isSingleHome = property?.property_type === 'single_family_home';
+  const propertyLevelRental = supportsPropertyRental(property?.property_type);
   const isMixedUse = property?.property_type === 'mixed_use_development';
-  const totalUnits = isSingleHome ? 1 : isMixedUse ? propertyUnits.length : property?.units_count ?? null;
-  const occupiedUnits = isSingleHome ? Number(Boolean(property?.is_rented)) : propertyUnits.filter((unit) => unit.status === 'occupied').length;
-  const vacantUnits = isSingleHome ? Number(!property?.is_rented) : propertyUnits.filter((unit) => unit.status === 'vacant').length;
+  const totalUnits = propertyLevelRental ? 1 : isMixedUse ? propertyUnits.length : property?.units_count ?? null;
+  const occupiedUnits = propertyLevelRental ? Number(Boolean(property?.is_rented)) : propertyUnits.filter((unit) => unit.status === 'occupied').length;
+  const vacantUnits = propertyLevelRental ? Number(!property?.is_rented) : propertyUnits.filter((unit) => unit.status === 'vacant').length;
   const buildingOwnerNames = propertyOwners.map((row) => contacts.find((contact) => String(contact.id) === String(row.contact_id))?.name).filter(Boolean).join(', ');
   const propertyRenter = ownerships.find((row) => row.property_id === property?.id && !row.unit_id && row.relationship_type === 'tenant');
   const propertyRenterName = contacts.find((contact) => String(contact.id) === String(propertyRenter?.contact_id))?.name;
@@ -325,7 +349,7 @@ export default function PropertyDetailPage() {
          <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><section className="rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-3 flex items-center justify-between"><div><h2 className="text-[13px] font-semibold text-[#302d28]">Property overview</h2><p className="mt-1 text-[11px] text-[#9a958d]">The essentials your team needs at a glance.</p></div><Building2 size={16} className="text-[#aaa59d]" /></div><div className="grid gap-x-7 sm:grid-cols-2"><InfoRow label="Category" value={propertyCategoryLabel(property.property_category)} /><InfoRow label="Property type" value={propertyTypeLabel(property.property_type)} /><PropertySubtypeRows property={property} /><InfoRow label="Units" value={totalUnits} /><InfoRow label="Units recorded" value={propertyUnits.length} /><InfoRow label="Building floors" value={property.floor_count} /><InfoRow label="Rooms" value={property.room_count} /><InfoRow label="Floor capacities" value={property.floor_unit_counts?.map((count, index) => `${index === 0 ? 'Ground floor' : `Floor ${index}`}: ${count}`).join(' · ')} /><InfoRow label="Address line 1" value={property.address_line1} /><InfoRow label="Address line 2" value={property.address_line2} /><InfoRow label="City" value={property.city} /><InfoRow label="State / region" value={property.state} /><InfoRow label="Postal code" value={property.postal_code} /><InfoRow label="Country" value={property.country} /></div><div className="mt-3 border-t border-[#f0eeeb] pt-1"><InfoRow label="Description" value={property.description} /></div></section>
           <section className="rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-3 flex items-center justify-between"><div><h2 className="text-[13px] font-semibold text-[#302d28]">Workspace signals</h2><p className="mt-1 text-[11px] text-[#9a958d]">Connected records will appear here as they become available.</p></div><Zap size={16} className="text-[#aaa59d]" /></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1"><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Users size={14} />Owner</span><span data-testid="value-property-owner" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Users size={14} />Manager</span><span data-testid="value-property-manager" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Building2 size={14} />Occupied units</span><span data-testid="value-property-occupied-units" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Building2 size={14} />Vacant units</span><span data-testid="value-property-vacant-units" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><ShieldAlert size={14} />Active issues</span><span data-testid="value-property-active-issues" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div></div></section></div>
           <OwnerSection property={property} contacts={contacts} ownerships={ownerships} />
-          <section className="mt-4 rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-4"><h2 className="text-[13px] font-semibold text-[#302d28]">Property specifications and rental</h2><p className="mt-1 text-[11px] text-[#9a958d]">Facilities, tenancy terms, and operating notes.</p></div><div className="grid gap-x-7 sm:grid-cols-2"><InfoRow label="Facilities" value={[...(property.facilities ?? []), ...(property.custom_facilities ?? [])].join(', ')} /><InfoRow label="Rented" value={property.is_rented ? 'Yes' : isSingleHome ? 'No' : null} /><InfoRow label="Renter" value={property.is_rented ? propertyRenterName ?? (propertyRenter ? 'Contact unavailable' : 'Renter not linked') : null} /><InfoRow label="Monthly rent (USD)" value={property.is_rented ? formatMoney(property.monthly_rent) : null} /><InfoRow label="Lease duration" value={property.is_rented ? property.lease_term_type === 'until_termination' ? 'Until termination' : property.lease_term_type === 'fixed' ? 'Fixed term' : null : null} /><InfoRow label="Lease start" value={property.is_rented ? property.lease_start_date : null} /><InfoRow label="Lease end" value={property.is_rented && property.lease_term_type === 'fixed' ? property.lease_end_date : null} /><InfoRow label="Amenities" value={property.amenities} /><InfoRow label="Property rules" value={property.property_rules} /><InfoRow label="Parking information" value={property.parking_information} /><InfoRow label="Access information" value={property.access_information} /><InfoRow label="Utilities information" value={property.utilities_information} /><InfoRow label="Emergency information" value={property.emergency_information} /><div className="sm:col-span-2"><InfoRow label="Internal notes" value={property.notes} /></div></div></section>
+          <section className="mt-4 rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-4"><h2 className="text-[13px] font-semibold text-[#302d28]">Property specifications and rental</h2><p className="mt-1 text-[11px] text-[#9a958d]">Facilities, tenancy terms, and operating notes.</p></div><div className="grid gap-x-7 sm:grid-cols-2"><InfoRow label="Facilities" value={[...(property.facilities ?? []), ...(property.custom_facilities ?? [])].join(', ')} /><InfoRow label="Rented" value={property.is_rented ? 'Yes' : supportsPropertyRental(property.property_type) ? 'No' : null} /><InfoRow label="Renter" value={property.is_rented ? propertyRenterName ?? (propertyRenter ? 'Contact unavailable' : 'Renter not linked') : null} /><InfoRow label="Monthly rent (USD)" value={property.is_rented ? formatMoney(property.monthly_rent) : null} /><InfoRow label="Lease duration" value={property.is_rented ? property.lease_term_type === 'until_termination' ? 'Until termination' : property.lease_term_type === 'fixed' ? 'Fixed term' : null : null} /><InfoRow label="Lease start" value={property.is_rented ? property.lease_start_date : null} /><InfoRow label="Lease end" value={property.is_rented && property.lease_term_type === 'fixed' ? property.lease_end_date : null} /><InfoRow label="Amenities" value={property.amenities} /><InfoRow label="Property rules" value={property.property_rules} /><InfoRow label="Parking information" value={property.parking_information} /><InfoRow label="Access information" value={property.access_information} /><InfoRow label="Utilities information" value={property.utilities_information} /><InfoRow label="Emergency information" value={property.emergency_information} /><div className="sm:col-span-2"><InfoRow label="Internal notes" value={property.notes} /></div></div></section>
           <PropertyUnitManager property={property} units={units} contacts={contacts} relationships={ownerships} onSave={saveUnit} onDelete={deleteUnit} />
           <section className="mt-4"><div className="mb-3"><h2 className="text-[13px] font-semibold text-[#302d28]">Property workspace</h2><p className="mt-1 text-[11px] text-[#9a958d]">Additional connected services and records.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><FutureSection icon={Users} title="Contacts" description="Residents and vendors connected to this property." /><FutureSection icon={Wrench} title="Issues" description="Maintenance requests and issue history for this property." /><FutureSection icon={Zap} title="Services" description="Recurring services and provider schedules." /><FutureSection icon={FileText} title="Documents" description="Leases, inspections, and property files." /><FutureSection icon={MessageSquare} title="Conversations" description="A shared timeline for property-related communication." /></div></section>
       </>}

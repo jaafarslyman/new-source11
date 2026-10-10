@@ -9,26 +9,36 @@ import {
   APARTMENT_BUILDING_FACILITIES,
   blankProperty,
   COMMERCIAL_FACILITIES,
+  DISTRIBUTION_GOODS,
+  DISTRIBUTION_SERVICES,
   DISTRIBUTION_CENTER_FACILITIES,
   HOSPITALITY_FACILITIES,
   HOSPITALITY_SPACE_TYPES,
   HOME_FACILITIES,
+  INDUSTRIAL_SHARED_FACILITIES,
+  MANUFACTURED_PRODUCT_SUGGESTIONS,
   MANUFACTURING_PLANT_FACILITIES,
   MIXED_USE_COMPONENTS,
   OFFICE_FACILITIES,
   PROPERTY_CATEGORIES,
   PROPERTY_TYPES_BY_CATEGORY,
+  PRODUCTION_INPUT_SUGGESTIONS,
+  RESEARCH_FOCUS_SUGGESTIONS,
+  RESEARCH_INPUT_SUGGESTIONS,
   RESEARCH_FACILITY_FACILITIES,
   RETAIL_CENTER_TYPES,
   RETAIL_CENTER_FACILITIES,
   RETAIL_UNIT_FACILITIES,
+  WAREHOUSE_GOODS,
   type Property,
   type PropertyDraft,
   WAREHOUSE_FACILITIES,
   mixedUseOwnershipScopeValues,
+  supportsPropertyRental,
 } from '@/lib/propertiesTypes';
 import type { Contact, ContactPropertyRelationship } from '@/lib/contactsTypes';
 import { unitTypeLabel, type Unit } from '@/lib/unitsTypes';
+import { TagListInput } from '@/components/properties/TagListInput';
 
 export interface PropertyOwnerDraft {
   id?: string | number;
@@ -68,6 +78,7 @@ interface PropertySetupFormProps {
 type PropertyCategory = keyof typeof PROPERTY_TYPES_BY_CATEGORY;
 type OwnerDraft = PropertyOwnerDraft;
 type Errors = Record<string, string>;
+type IndustrialArrayField = 'warehouse_goods' | 'distribution_goods' | 'distribution_services' | 'manufactured_products' | 'production_inputs' | 'research_focus' | 'research_inputs';
 
 const inputClass = 'h-10 w-full rounded-[9px] border border-[#e4e2de] bg-white px-3 text-[13px] text-[#24211e] outline-none transition-colors placeholder:text-[#b3afa8] focus:border-[#587b70] focus:ring-2 focus:ring-[#587b70]/10 disabled:cursor-not-allowed disabled:bg-[#f5f3f0]';
 let nextSyntheticContactId = -1;
@@ -224,6 +235,15 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
       utilities_information: property.utilities_information ?? '',
       emergency_information: property.emergency_information ?? '',
       notes: property.notes ?? '',
+      industrial_in_building: property.industrial_in_building ?? null,
+      industrial_floor: property.industrial_floor ?? null,
+      warehouse_goods: property.warehouse_goods ?? [],
+      distribution_goods: property.distribution_goods ?? [],
+      distribution_services: property.distribution_services ?? [],
+      manufactured_products: property.manufactured_products ?? [],
+      production_inputs: property.production_inputs ?? [],
+      research_focus: property.research_focus ?? [],
+      research_inputs: property.research_inputs ?? [],
     } : { ...blankProperty, property_type: '' };
     setForm(current);
     setCategory(initialCategory);
@@ -272,7 +292,12 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
   const retailCenter = subtype === 'retail_center';
   const hospitalitySpace = subtype === 'restaurant_hospitality';
   const mixedUse = subtype === 'mixed_use_development';
-  const propertyCanRent = singleFamily || (commercial && !mixedUse);
+  const warehouse = subtype === 'warehouse';
+  const distributionCenter = subtype === 'distribution_center';
+  const manufacturingPlant = subtype === 'manufacturing_plant';
+  const researchFacility = subtype === 'research_development_facility';
+  const industrialBuildingSubtype = warehouse || distributionCenter || researchFacility;
+  const propertyCanRent = supportsPropertyRental(subtype);
   const selectedFacilities = useMemo(() => new Set(facilities), [facilities]);
   const sharedFacilityOptions = useMemo(() => {
     if (mixedUse) {
@@ -295,7 +320,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
           : subtype === 'manufacturing_plant'
             ? MANUFACTURING_PLANT_FACILITIES
             : RESEARCH_FACILITY_FACILITIES;
-      return uniqueFacilityOptions(COMMERCIAL_FACILITIES, industrialOptions);
+      return uniqueFacilityOptions(INDUSTRIAL_SHARED_FACILITIES, industrialOptions);
     }
     if (apartment || multifamily) return uniqueFacilityOptions(HOME_FACILITIES, APARTMENT_BUILDING_FACILITIES);
     return [...HOME_FACILITIES];
@@ -399,7 +424,19 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
       && floorCapacities.reduce((sum, capacity) => sum + Number(capacity), 0) === configuredUnits
     ));
 
-  const setField = (key: keyof PropertyDraft, value: string | number | null) => setForm((current) => ({ ...current, [key]: value }));
+  const setField = (key: keyof PropertyDraft, value: PropertyDraft[keyof PropertyDraft]) => setForm((current) => ({ ...current, [key]: value }));
+  const clearIndustrialFields = () => {
+    setField('industrial_in_building', null);
+    setField('industrial_floor', null);
+    setField('warehouse_goods', []);
+    setField('distribution_goods', []);
+    setField('distribution_services', []);
+    setField('manufactured_products', []);
+    setField('production_inputs', []);
+    setField('research_focus', []);
+    setField('research_inputs', []);
+  };
+  const updateIndustrialTags = (key: IndustrialArrayField, value: string[]) => setField(key, value);
   const setOwner = (index: number, patch: Partial<OwnerDraft>) => setOwners((current) => current.map((owner, i) => i === index ? { ...owner, ...patch } : owner));
   const setRenterFields = (patch: Partial<PropertyRenterDraft>) => setRenter((current) => ({ ...current, ...patch }));
   const toggleFacility = (facility: string) => setFacilities((current) => current.includes(facility) ? current.filter((item) => item !== facility) : [...current, facility]);
@@ -460,6 +497,20 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
         next.office_floor = 'Enter a whole-number floor. Use 0 for the ground floor.';
       }
     }
+    if (industrialBuildingSubtype) {
+      if (form.industrial_in_building === null) next.industrial_in_building = 'Choose whether this property is in a building or standalone.';
+      if (form.industrial_in_building && (!Number.isInteger(form.industrial_floor) || Number(form.industrial_floor) < 0)) {
+        next.industrial_floor = 'Enter a whole-number floor. Use 0 for the ground floor.';
+      }
+    }
+    if (warehouse && !(form.warehouse_goods ?? []).length) next.warehouse_goods = 'Add at least one type of good stored here.';
+    if (distributionCenter) {
+      if (!(form.distribution_goods ?? []).length) next.distribution_goods = 'Add at least one type of good handled here.';
+      if (!(form.distribution_services ?? []).length) next.distribution_services = 'Add at least one distribution operation.';
+    }
+    if (manufacturingPlant && !(form.manufactured_products ?? []).length) next.manufactured_products = 'Add at least one product manufactured here.';
+    if (researchFacility && !(form.research_focus ?? []).length) next.research_focus = 'Add at least one research focus.';
+    if (industrial && !propertyFacilities.length && !customFacilities.length) next.facilities = 'Choose or add at least one facility.';
     if ((retailCenter || hospitalitySpace) && !commercialSpaceType) {
       next.commercial_space_type = `Choose the ${retailCenter ? 'retail center' : 'hospitality space'} type.`;
     }
@@ -501,8 +552,8 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
         if (invalidOwnerAssignment) next.inline_units = 'A mapped space has no current owner or its owner does not own that use. Remove and re-add the space after updating owner assignments.';
       }
     }
-    if ((singleFamily || apartment || commercial) && owners.length === 0) next.owners = 'Add at least one owner.';
-    if (singleFamily || apartment || commercial) {
+    if ((singleFamily || apartment || commercial || industrial) && owners.length === 0) next.owners = 'Add at least one owner.';
+    if (singleFamily || apartment || commercial || industrial) {
       owners.forEach((owner, index) => {
         if (owner.source === 'existing' && !owner.contact_id) next[`owner_${index}`] = 'Select an existing contact.';
         if (owner.source === 'new' && !owner.name.trim()) next[`owner_${index}`] = 'Owner name is required.';
@@ -541,7 +592,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
       }
     }
     return next;
-  }, [form, subtype, singleFamily, multifamily, apartment, commercial, officeBuilding, officeInBuilding, officeFloor, retailCenter, hospitalitySpace, commercialSpaceType, mixedUse, mixedUseComponents, property, existingUnits, propertyCanRent, roomCount, floorCount, floorCapacities, owners, rented, renter, pendingUnits]);
+  }, [form, subtype, singleFamily, multifamily, apartment, commercial, industrial, officeBuilding, officeInBuilding, officeFloor, retailCenter, hospitalitySpace, commercialSpaceType, mixedUse, mixedUseComponents, property, existingUnits, propertyCanRent, roomCount, floorCount, floorCapacities, owners, rented, renter, pendingUnits, industrialBuildingSubtype, warehouse, distributionCenter, manufacturingPlant, researchFacility, propertyFacilities, customFacilities]);
 
   const canSave = Object.keys(validation).length === 0 && !saving;
   const save = async () => {
@@ -569,13 +620,22 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
       office_floor: officeBuilding && officeInBuilding ? Number(officeFloor) : null,
       commercial_space_type: retailCenter || hospitalitySpace ? commercialSpaceType : null,
       mixed_use_components: mixedUse ? mixedUseComponents : [],
+      industrial_in_building: industrialBuildingSubtype ? form.industrial_in_building : null,
+      industrial_floor: industrialBuildingSubtype && form.industrial_in_building ? Number(form.industrial_floor) : null,
+      warehouse_goods: warehouse ? form.warehouse_goods ?? [] : [],
+      distribution_goods: distributionCenter ? form.distribution_goods ?? [] : [],
+      distribution_services: distributionCenter ? form.distribution_services ?? [] : [],
+      manufactured_products: manufacturingPlant ? form.manufactured_products ?? [] : [],
+      production_inputs: manufacturingPlant ? form.production_inputs ?? [] : [],
+      research_focus: researchFacility ? form.research_focus ?? [] : [],
+      research_inputs: researchFacility ? form.research_inputs ?? [] : [],
       is_rented: propertyCanRent ? Boolean(rented) : false,
       monthly_rent: propertyCanRent && rented ? Number(renter.monthly_rent) : null,
       lease_term_type: propertyCanRent && rented ? renter.lease_term_type : null,
       lease_start_date: propertyCanRent && rented ? renter.lease_start_date : null,
       lease_end_date: propertyCanRent && rented && renter.lease_term_type === 'fixed' ? renter.lease_end_date : null,
     } as PropertyDraft;
-    const ownerRows = singleFamily || apartment || commercial ? owners.map((owner) => ({
+    const ownerRows = singleFamily || apartment || commercial || industrial ? owners.map((owner) => ({
       ...owner,
       name: owner.name.trim(),
       email: owner.email.trim(),
@@ -640,6 +700,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
                         setOfficeFloor('');
                         setCommercialSpaceType('');
                         setMixedUseComponents([]);
+                        clearIndustrialFields();
                       }}
                       className={`min-h-10 rounded-[9px] border px-3 text-left text-[12px] font-semibold transition-colors ${selected ? 'border-[#97ad9b] bg-[#eff4ee] text-[#455c4b]' : 'border-[#e4e2de] bg-white text-[#625e57] hover:border-[#cbd7ce] hover:bg-[#f8faf7]'}`}
                     >
@@ -651,7 +712,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
             </div>
             {category && <div className="sm:col-span-2">
               <Field label={`${PROPERTY_CATEGORIES.find((option) => option.value === category)?.label ?? 'Property'} subtype`} required>
-                <FlowPointSelect testId="select-property-subtype" value={subtype} onChange={(value) => { setField('property_type', value); setField('units_count', null); setFloorCount(''); setFloorCapacities([]); setPendingUnits([]); setOfficeInBuilding(null); setOfficeFloor(''); setCommercialSpaceType(''); setMixedUseComponents([]); }} placeholder="Choose a subtype" options={[...PROPERTY_TYPES_BY_CATEGORY[category]]} />
+                <FlowPointSelect testId="select-property-subtype" value={subtype} onChange={(value) => { setField('property_type', value); setField('units_count', null); setFloorCount(''); setFloorCapacities([]); setPendingUnits([]); setOfficeInBuilding(null); setOfficeFloor(''); setCommercialSpaceType(''); setMixedUseComponents([]); clearIndustrialFields(); }} placeholder="Choose a subtype" options={[...PROPERTY_TYPES_BY_CATEGORY[category]]} />
               </Field>
             </div>}
             <div className="sm:col-span-2"><FormError message={validation.subtype} testId="error-property-subtype" /></div>
@@ -736,6 +797,64 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
                       </>}
                     </section>}
 
+                    {industrial && <section className="mb-7" data-testid="section-industrial-details">
+                      <SectionHeading index="01" eyebrow="Industrial details" title="Configure this operation" description="Capture the building location, materials, products, or research focus for this industrial property." />
+                      {industrialBuildingSubtype && <div className="space-y-3">
+                        <Field label="Is this property inside a building?" required>
+                          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Industrial building location">
+                            {[{ value: true, label: 'Yes, in a building' }, { value: false, label: 'No, standalone' }].map((choice) => <button key={String(choice.value)} type="button" data-testid={`button-industrial-in-building-${choice.value ? 'yes' : 'no'}`} aria-pressed={form.industrial_in_building === choice.value} onClick={() => { setField('industrial_in_building', choice.value); if (!choice.value) setField('industrial_floor', null); }} className={`rounded-[9px] border p-3 text-left text-[11px] font-semibold ${form.industrial_in_building === choice.value ? 'border-[#97ad9b] bg-[#eff4ee] text-[#455c4b]' : 'border-[#e7e4de] bg-white text-[#6f6b63]'}`}>{choice.label}</button>)}
+                          </div>
+                          <FormError message={validation.industrial_in_building} testId="error-industrial-building-location" />
+                        </Field>
+                        {form.industrial_in_building && <Field label="Floor" required hint="Use 0 for ground floor">
+                          <input data-testid="input-industrial-floor" className={inputClass} type="number" min="0" step="1" value={form.industrial_floor ?? ''} onChange={(event) => setField('industrial_floor', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 2" />
+                          <FormError message={validation.industrial_floor} testId="error-industrial-floor" />
+                        </Field>}
+                      </div>}
+                      {warehouse && <div className="mt-4">
+                        <Field label="Goods stored" required hint="Choose suggestions or enter other inventory types">
+                          <TagListInput id="input-warehouse-goods" value={form.warehouse_goods ?? []} onChange={(value) => updateIndustrialTags('warehouse_goods', value)} placeholder="Add a type of stored goods" suggestions={WAREHOUSE_GOODS} />
+                        </Field>
+                        <FormError message={validation.warehouse_goods} testId="error-warehouse-goods" />
+                      </div>}
+                      {distributionCenter && <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <Field label="Goods handled" required hint="Select the goods types moving through this center">
+                            <TagListInput id="input-distribution-goods" value={form.distribution_goods ?? []} onChange={(value) => updateIndustrialTags('distribution_goods', value)} placeholder="Add a goods type" suggestions={DISTRIBUTION_GOODS} />
+                          </Field>
+                          <FormError message={validation.distribution_goods} testId="error-distribution-goods" />
+                        </div>
+                        <div>
+                          <Field label="Distribution operations" required hint="Select the services performed here">
+                            <TagListInput id="input-distribution-services" value={form.distribution_services ?? []} onChange={(value) => updateIndustrialTags('distribution_services', value)} placeholder="Add an operation" suggestions={DISTRIBUTION_SERVICES} />
+                          </Field>
+                          <FormError message={validation.distribution_services} testId="error-distribution-services" />
+                        </div>
+                      </div>}
+                      {manufacturingPlant && <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <Field label="Products manufactured" required hint="List the products or product families">
+                            <TagListInput id="input-manufactured-products" value={form.manufactured_products ?? []} onChange={(value) => updateIndustrialTags('manufactured_products', value)} placeholder="Add a manufactured product" suggestions={MANUFACTURED_PRODUCT_SUGGESTIONS} />
+                          </Field>
+                          <FormError message={validation.manufactured_products} testId="error-manufactured-products" />
+                        </div>
+                        <Field label="Production inputs" hint="Optional raw materials, components, or process inputs">
+                          <TagListInput id="input-production-inputs" value={form.production_inputs ?? []} onChange={(value) => updateIndustrialTags('production_inputs', value)} placeholder="Add a production input" suggestions={PRODUCTION_INPUT_SUGGESTIONS} />
+                        </Field>
+                      </div>}
+                      {researchFacility && <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <Field label="Research focus" required hint="List the research disciplines or activities">
+                            <TagListInput id="input-research-focus" value={form.research_focus ?? []} onChange={(value) => updateIndustrialTags('research_focus', value)} placeholder="Add a research focus" suggestions={RESEARCH_FOCUS_SUGGESTIONS} />
+                          </Field>
+                          <FormError message={validation.research_focus} testId="error-research-focus" />
+                        </div>
+                        <Field label="Research inputs" hint="Optional samples, materials, or specialized inputs">
+                          <TagListInput id="input-research-inputs" value={form.research_inputs ?? []} onChange={(value) => updateIndustrialTags('research_inputs', value)} placeholder="Add a research input" suggestions={RESEARCH_INPUT_SUGGESTIONS} />
+                        </Field>
+                      </div>}
+                    </section>}
+
                     {(singleFamily || multifamily || apartment || commercial || mixedUse || industrial) && (
                       <section className="mb-7" data-testid="section-property-facilities">
                         <SectionHeading index="02" eyebrow="Shared spaces" title="Facilities & features" description={mixedUse ? 'Select shared facilities for the uses included in this property. You can also add a facility that isn’t listed.' : commercial || industrial ? 'Select the facilities available at this property. You can also add a facility that isn’t listed.' : apartment ? 'Select the building amenities and any home-style shared facilities.' : 'Select what’s available. You can add a facility that isn’t listed.'} />
@@ -745,12 +864,13 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
                             return <button key={facility.value} type="button" data-testid={`button-facility-${facility.value}`} aria-pressed={checked} onClick={() => toggleFacility(facility.value)} className={`flex min-h-10 items-center gap-2 rounded-[9px] border px-3 text-left text-[11px] font-medium transition-colors ${checked ? 'border-[#b9cabe] bg-[#edf4ee] text-[#4d6a59]' : 'border-[#e7e4de] bg-white text-[#69665f] hover:border-[#ccd7ce] hover:bg-[#f8faf7]'}`}><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${checked ? 'border-[#63816e] bg-[#63816e] text-white' : 'border-[#d5d2ca] bg-white'}`}>{checked && <Check size={11} />}</span>{facility.label}</button>;
                           })}
                         </div>
+                         <FormError message={validation.facilities} testId="error-property-facilities" />
                         <div className="mt-3 flex gap-2"><input data-testid="input-property-custom-facility" className={inputClass} value={customFacility} onChange={(event) => setCustomFacility(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (customFacility.trim() && !customFacilities.includes(customFacility.trim())) setCustomFacilities((current) => [...current, customFacility.trim()]); setCustomFacility(''); } }} placeholder="Add another facility" /><button type="button" data-testid="button-add-custom-facility" onClick={() => { if (customFacility.trim() && !customFacilities.includes(customFacility.trim())) setCustomFacilities((current) => [...current, customFacility.trim()]); setCustomFacility(''); }} disabled={!customFacility.trim()} className="flex h-10 shrink-0 items-center gap-1.5 rounded-[9px] border border-[#dcd9d2] px-3 text-[11px] font-semibold text-[#66635b] transition-colors hover:bg-[#f3f2ee] disabled:cursor-not-allowed disabled:opacity-45"><Plus size={13} />Add</button></div>
                         {customFacilities.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{customFacilities.map((facility) => <span key={facility} data-testid={`chip-custom-facility-${facility}`} className="inline-flex items-center gap-1 rounded-full bg-[#eaf0e9] px-2.5 py-1 text-[10px] text-[#526d5b]">{facility}<button type="button" data-testid={`button-remove-facility-${facility}`} aria-label={`Remove ${facility}`} onClick={() => setCustomFacilities((current) => current.filter((item) => item !== facility))}><X size={11} /></button></span>)}</div>}
                       </section>
                     )}
 
-                    {(singleFamily || apartment || commercial) && <section className="mb-7" data-testid="section-property-owners">
+                    {(singleFamily || apartment || commercial || industrial) && <section className="mb-7" data-testid="section-property-owners">
                       <SectionHeading index="03" eyebrow="Ownership" title="Who owns this property?" description={mixedUse ? 'A sole owner owns the whole property. With multiple owners, assign the uses each owner owns; spaces will be assigned to those owners.' : apartment ? 'Building owners share the property. With multiple owners, record each one’s unit scope.' : 'Add one or more owners. Ownership shares must total 100%.'} />
                       <div className="space-y-3">
                         {owners.map((owner, index) => (

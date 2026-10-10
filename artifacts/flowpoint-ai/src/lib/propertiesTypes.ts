@@ -29,6 +29,15 @@ export interface Property {
   office_floor: number | null;
   commercial_space_type: string | null;
   mixed_use_components: string[] | null;
+  industrial_in_building: boolean | null;
+  industrial_floor: number | null;
+  warehouse_goods: string[] | null;
+  distribution_goods: string[] | null;
+  distribution_services: string[] | null;
+  manufactured_products: string[] | null;
+  production_inputs: string[] | null;
+  research_focus: string[] | null;
+  research_inputs: string[] | null;
   property_rules: string | null;
   parking_information: string | null;
   access_information: string | null;
@@ -71,6 +80,21 @@ export const PROPERTY_TYPES = [
   ...PROPERTY_TYPES_BY_CATEGORY.commercial,
   ...PROPERTY_TYPES_BY_CATEGORY.industrial,
 ] as const;
+
+export const PROPERTY_LEVEL_RENTAL_TYPES = [
+  'single_family_home',
+  'office_building',
+  'retail_center',
+  'restaurant_hospitality',
+  'warehouse',
+  'distribution_center',
+  'manufacturing_plant',
+  'research_development_facility',
+] as const;
+
+export function supportsPropertyRental(type: string | null | undefined) {
+  return PROPERTY_LEVEL_RENTAL_TYPES.some((supportedType) => supportedType === type);
+}
 
 export const HOME_FACILITIES = [
   { value: 'garden', label: 'Garden' },
@@ -223,6 +247,101 @@ export const RESEARCH_FACILITY_FACILITIES = [
   { value: 'testing_chambers', label: 'Testing chambers' },
   { value: 'secure_research_area', label: 'Secure research area' },
   { value: 'data_center', label: 'Data center' },
+  { value: 'fume_hoods', label: 'Fume hoods' },
+  { value: 'sample_storage', label: 'Controlled sample storage' },
+  { value: 'instrumentation_room', label: 'Instrumentation room' },
+] as const;
+
+export const INDUSTRIAL_SHARED_FACILITIES = [
+  { value: 'loading_dock', label: 'Loading dock' },
+  { value: 'truck_court', label: 'Truck court' },
+  { value: 'industrial_hvac', label: 'Industrial HVAC' },
+  { value: 'access_control', label: 'Access control' },
+  { value: 'surveillance', label: 'Video surveillance' },
+  { value: 'fire_suppression', label: 'Industrial fire suppression' },
+  { value: 'backup_generator', label: 'Backup generator' },
+  { value: 'waste_management', label: 'Industrial waste management' },
+] as const;
+
+export const WAREHOUSE_GOODS = [
+  'Consumer goods',
+  'Food and beverages',
+  'Refrigerated or frozen goods',
+  'Raw materials',
+  'Building materials',
+  'Automotive parts',
+  'Furniture',
+  'Textiles',
+  'Agricultural products',
+  'Hazardous materials',
+] as const;
+
+export const DISTRIBUTION_GOODS = [
+  'Parcel shipments',
+  'Palletized freight',
+  'Food and beverages',
+  'Refrigerated or frozen goods',
+  'Consumer goods',
+  'Medical supplies',
+  'Automotive parts',
+  'Oversized freight',
+  'Hazardous materials',
+] as const;
+
+export const DISTRIBUTION_SERVICES = [
+  'Order fulfillment',
+  'Cross-docking',
+  'Parcel sorting',
+  'Last-mile dispatch',
+  'Cold-chain handling',
+  'Returns processing',
+  'Pallet storage and dispatch',
+  'Freight consolidation',
+] as const;
+
+export const MANUFACTURED_PRODUCT_SUGGESTIONS = [
+  'Food products',
+  'Metal products',
+  'Machinery',
+  'Electronics',
+  'Plastics',
+  'Chemicals',
+  'Textiles',
+  'Building materials',
+  'Medical devices',
+] as const;
+
+export const PRODUCTION_INPUT_SUGGESTIONS = [
+  'Metals',
+  'Chemicals',
+  'Lumber',
+  'Plastics and resins',
+  'Electronic components',
+  'Agricultural inputs',
+  'Packaging materials',
+  'Water and process utilities',
+] as const;
+
+export const RESEARCH_FOCUS_SUGGESTIONS = [
+  'Life sciences',
+  'Materials science',
+  'Chemistry',
+  'Engineering',
+  'Electronics',
+  'Food science',
+  'Environmental research',
+  'Clinical research',
+  'Product testing',
+] as const;
+
+export const RESEARCH_INPUT_SUGGESTIONS = [
+  'Biological samples',
+  'Chemical reagents',
+  'Test materials',
+  'Prototype components',
+  'Reference samples',
+  'Sensitive instruments',
+  'Controlled-temperature samples',
 ] as const;
 
 export const RETAIL_CENTER_TYPES = [
@@ -345,6 +464,15 @@ export const blankProperty: PropertyDraft = {
   office_floor: null,
   commercial_space_type: null,
   mixed_use_components: [],
+  industrial_in_building: null,
+  industrial_floor: null,
+  warehouse_goods: [],
+  distribution_goods: [],
+  distribution_services: [],
+  manufactured_products: [],
+  production_inputs: [],
+  research_focus: [],
+  research_inputs: [],
   property_rules: '',
   parking_information: '',
   access_information: '',
