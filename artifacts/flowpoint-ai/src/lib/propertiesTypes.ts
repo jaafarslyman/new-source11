@@ -29,6 +29,7 @@ export interface Property {
   office_floor: number | null;
   commercial_space_type: string | null;
   mixed_use_components: string[] | null;
+  mixed_use_floor_plan: Record<string, number>[] | null;
   industrial_in_building: boolean | null;
   industrial_floor: number | null;
   warehouse_goods: string[] | null;
@@ -464,6 +465,7 @@ export const blankProperty: PropertyDraft = {
   office_floor: null,
   commercial_space_type: null,
   mixed_use_components: [],
+  mixed_use_floor_plan: [],
   industrial_in_building: null,
   industrial_floor: null,
   warehouse_goods: [],

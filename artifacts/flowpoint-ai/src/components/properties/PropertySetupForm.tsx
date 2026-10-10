@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import FlowPointSelect from '@/components/FlowPointSelect';
 import { UnitSetupModal, type UnitSavePayload } from '@/components/PropertyUnitManager';
+import { FacilityPicker } from '@/components/properties/FacilityPicker';
 import {
   APARTMENT_BUILDING_FACILITIES,
   blankProperty,
@@ -86,6 +87,23 @@ type FacilityOption = { value: string; label: string };
 
 function uniqueFacilityOptions(...groups: readonly (readonly FacilityOption[])[]) {
   return Array.from(new Map(groups.flat().map((facility) => [facility.value, facility])).values());
+}
+
+function resizeMixedUseFloorPlan(
+  plan: Record<string, number>[],
+  floorCount: number,
+  components: string[],
+) {
+  const safeFloorCount = Number.isInteger(floorCount) && floorCount > 0
+    ? Math.min(floorCount, 100)
+    : 0;
+  return Array.from({ length: safeFloorCount }, (_, floorIndex) => {
+    const currentFloor = plan[floorIndex] ?? {};
+    return Object.fromEntries(components.map((component) => [
+      component,
+      currentFloor[component] ?? 0,
+    ]));
+  });
 }
 
 function categoryForType(type: string | null | undefined): PropertyCategory | '' {
